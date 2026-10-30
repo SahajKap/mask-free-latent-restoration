@@ -1,3 +1,4 @@
+# Versions used for the paper (GPU: Python 3.10, CUDA 12.4). Newer versions of torch also work (checked on CPU).
 torch==2.6.0
 torchvision==0.21.0
 pytorch-lightning==2.6.6

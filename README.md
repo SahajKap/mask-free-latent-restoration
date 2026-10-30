@@ -29,12 +29,12 @@ It contains only our own files and a patch (`compat.patch`) with our changes to 
 ## 1. Setup
 
 ```bash
-git clone https://github.com/SahajKap/mask-free-latent-restoration.git maskfree
-git clone $(cat maskfree/UPSTREAM_URL.txt) cddpm && cd cddpm
-git checkout $(cat ../maskfree/UPSTREAM_COMMIT.txt)
-git apply ../maskfree/compat.patch
+git clone https://github.com/SahajKap/mask-free-latent-restoration.git maskfree      # this repository
+git clone $(cat maskfree/UPSTREAM_URL.txt) cddpm && cd cddpm               # the benchmark code
+git checkout $(cat ../maskfree/UPSTREAM_COMMIT.txt)                       # exact version we used
+git apply ../maskfree/compat.patch      # Lightning 2.x / TorchIO 1.x fixes, ATLAS and WMH test sets
 cp -r ../maskfree/src ../maskfree/configs ../maskfree/scripts .
-pip install -r ../maskfree/requirements.txt
+pip install -r ../maskfree/requirements.txt   # our versions; do not use cddpm's own requirements.txt (2021 pins)
 ```
 
 All commands below are run from inside `cddpm/`.
@@ -106,8 +106,12 @@ selection.
 
 ## 6. Other scripts
 
-- `scripts/timing.py`: reconstruction time per volume
-- `scripts/make_figs.py`, `scripts/make_fig_qual.py`: figures
+- `scripts/timing.py <onestep_ckpt> <iterative_ckpt> <latent_scale> [ddpm_ckpt]`: reconstruction time per volume (GPU)
+- `scripts/make_fig_qual.py [percentile] [t2_run] [t1_run]`: qualitative figure (paper Fig. 3) from evaluated runs
+- `scripts/make_figs.py [t2_run] [t1_run]`: synthetic-anomaly figure (paper Fig. 2)
+
+Figure scripts read run folders from `$LOG_DIR/logs/runs` (default run names are those of `cross_validate.sh`, fold 0)
+and write PNGs to `$FIG_DIR` (default: current folder).
 
 ## Citation
 
