@@ -84,8 +84,9 @@ To evaluate an existing checkpoint without training, set `INIT_CKPT` to it, comp
 file as above (conditional-model checkpoints contain their VAE), and add
 `trainer.max_epochs=0 trainer.min_epochs=0 ckpt_path=null`.
 
-Results are written to `<run dir>/<fold>_preds_dict.pkl`. The paper reports `DicePerVolMean` and `AUPRCPerVolMean`
-of the `test` entries.
+Results are written to `$LOG_DIR/logs/runs/<run name>/<timestamp>/<k>_preds_dict.pkl`, where `<k>` is the fold
+number plus one (fold 0 → `1_preds_dict.pkl`). The paper reports `DicePerVolMean` and `AUPRCPerVolMean` of the
+`test` entries; `scripts/cv_summary.py` collects them over folds.
 
 ## 5. Ablations (paper Section 5.1)
 
