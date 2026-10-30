@@ -29,7 +29,7 @@ It contains only our own files and a patch (`compat.patch`) with our changes to 
 ## 1. Setup
 
 ```bash
-git clone https://github.com/<user-or-org>/<repo-name>.git maskfree      # this repository
+git clone https://github.com/RapDoc/mask-free-latent-restoration.git maskfree      # this repository
 git clone $(cat maskfree/UPSTREAM_URL.txt) cddpm && cd cddpm               # the benchmark code
 git checkout $(cat ../maskfree/UPSTREAM_COMMIT.txt)                       # exact version we used
 git apply ../maskfree/compat.patch      # Lightning 2.x / TorchIO 1.x fixes, ATLAS and WMH test sets
