@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.ckpt
+*.pt
+logs/
+wandb/
+pc_environment.env

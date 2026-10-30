@@ -1,0 +1,68 @@
+_target_: src.models.MaskFreeLDM.MaskFreeLDM
+
+cfg:
+  name: MaskFreeLDM
+  ## Data (inherited from datamodule, same as DDPM_2D.yaml)
+  imageDim: ${datamodule.cfg.imageDim}
+  rescaleFactor: ${datamodule.cfg.rescaleFactor}
+  interRes: ${datamodule.cfg.interRes}
+  cropMode: ${datamodule.cfg.cropMode}
+  spatialDims: 2D
+  resizedEvaluation: ${datamodule.cfg.resizedEvaluation}
+  lr: ${datamodule.cfg.lr}
+  mode: ${datamodule.cfg.mode}
+  pad: ${datamodule.cfg.pad}
+
+  ## Stage control: vae | generator | diffusion
+  stage: diffusion
+  init_ckpt: null          # checkpoint of the previous stage
+  stage_lr: 1e-4
+
+  ## VAE
+  latent_ch: 4
+  beta_kl: 1e-3
+
+  ## Generator
+  mask_source: learned     # learned | random (ablation)
+  field_res: 12
+  place_noise: 1.0
+  area_range: [0.01, 0.08] # fraction of brain covered by one synthetic anomaly
+  mask_temp: 0.1
+  target_area: 0.05
+  size_delta: 0.005
+  lambda_size: 5.0
+  lambda_tv: 2.0
+  lambda_bin: 1.0
+  lambda_div: 10.0
+  brain_erode: 4           # px at 96x96 (was 10 at 256x256)
+  mask_sigma: [0.75, 2.0]  # px at 96x96
+
+  ## Diffusion
+  unet_base: 64
+  time_dim: 256
+  timesteps: 1000
+  t_max: 1000
+  beta_start: 1e-4
+  beta_end: 0.02
+  amp: [3.0, 6.0]
+  p_clean_cond: 0.2
+  corrupt_input: false
+  pred_x0: false
+  p_drop_cond: 0.0
+  latent_scale: 1.0        # set to 1/std(mu) from scripts/latent_stats.py
+
+  ## Inference
+  test_cond: input         # input | corrupt (old behaviour, ablation only)
+  t0_ensemble: [250, 500, 750]
+  ddim_steps: 25
+  cancel_vae_error: false
+  guidance_w: 1.0
+  z_clip: null
+  test_seed: 0
+
+  ## Evaluation (identical to DDPM_2D.yaml)
+  saveOutputImages: True
+  evalSeg: True
+  erodeBrainmask: True
+  medianFiltering: True
+  threshold: auto

@@ -1,0 +1,40 @@
+# @package _global_
+defaults:
+  - override /trainer: default.yaml
+  - override /model: MaskFreeLDM.yaml
+  - override /datamodule: IXI.yaml
+datamodule:
+  cfg:
+    rescaleFactor: 2
+    imageDim: [192,192,100]
+    mode: t2
+    aug_intensity: False
+    num_workers: 0
+model:
+  cfg:
+    stage: diffusion
+    init_ckpt: ${oc.env:INIT_CKPT}
+    latent_scale: ${oc.decode:${oc.env:LATENT_SCALE}}
+    mask_source: random
+    amp: [1.0, 2.0]
+    area_range: [0.05, 0.3]
+    area_log: False
+    pred_x0: True
+    p_clean_cond: 0.2
+    p_drop_cond: 0.3
+    cancel_vae_error: True
+    guidance_w: 1.0
+    corrupt_input: False
+    t_max: 1000
+    t0_ensemble: [250, 500, 750]
+    ddim_steps: 25
+num_folds: 1
+logger:
+  wandb:
+    project: maskfree
+name: maskfree_iterative
+seed: 3141
+test_after_training: True
+ckpt_path: best
+trainer:
+  max_epochs: 2400

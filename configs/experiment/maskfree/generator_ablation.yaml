@@ -1,0 +1,24 @@
+# @package _global_
+defaults:
+  - override /trainer: default.yaml
+  - override /model: MaskFreeLDM.yaml
+  - override /datamodule: IXI.yaml
+datamodule:
+  cfg:
+    rescaleFactor: 2
+    imageDim: [192,192,100]
+    mode: t2                 # t2 -> BraTS21/MSLUB, t1 -> ATLAS/WMH
+    aug_intensity: False
+model:
+  cfg:
+    stage: generator
+    init_ckpt: ${oc.env:INIT_CKPT}
+num_folds: 1
+logger:
+  wandb:
+    project: maskfree
+name: maskfree_generator
+seed: 3141
+test_after_training: False
+trainer:
+  max_epochs: 500

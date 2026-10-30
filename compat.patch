@@ -1,0 +1,377 @@
+diff --git a/configs/datamodule/IXI.yaml b/configs/datamodule/IXI.yaml
+index 24b9664..fe86917 100644
+--- a/configs/datamodule/IXI.yaml
++++ b/configs/datamodule/IXI.yaml
+@@ -33,6 +33,16 @@ cfg:
+         val: ${data_dir}/Data/splits/MSLUB_val.csv
+ 
+ 
++    ATLAS_v2:
++      IDs:
++        test: ${data_dir}/Data/splits/ATLAS_v2_test.csv
++        val: ${data_dir}/Data/splits/ATLAS_v2_val.csv
++
++    WMH:
++      IDs:
++        test: ${data_dir}/Data/splits/WMH_test.csv
++        val: ${data_dir}/Data/splits/WMH_val.csv
++
+   imageDim: [160,192,160] 
+   rescaleFactor: 2
+   interRes: [8,8,5] #[HxWxD]
+@@ -69,6 +79,8 @@ cfg:
+   testsets: # specify which test sets to evaluate!
+   - Datamodules_eval.Brats21
+   - Datamodules_eval.MSLUB
++  - Datamodules_eval.ATLAS_v2
++  - Datamodules_eval.WMH
+   - Datamodules_train.IXI
+ 
+ 
+diff --git a/configs/trainer/default.yaml b/configs/trainer/default.yaml
+index b1eeb94..b274536 100644
+--- a/configs/trainer/default.yaml
++++ b/configs/trainer/default.yaml
+@@ -1,12 +1,11 @@
+ _target_: pytorch_lightning.Trainer
+ 
+-gpus: -1 # Specify GPU by CUDA_VISIBLE_DEVICES=0 
++accelerator: gpu
++devices: 1
+ min_epochs: 1
+ max_epochs: 800
+ log_every_n_steps: 5
+-precision : 16
+-num_sanity_val_steps : 0 # This does not work with dp, only with ddp
+-check_val_every_n_epoch : 1
++precision: 16-mixed
++num_sanity_val_steps: 0
++check_val_every_n_epoch: 1
+ benchmark: True
+-overfit_batches: False
+-
+diff --git a/src/datamodules/Datamodules_eval.py b/src/datamodules/Datamodules_eval.py
+index 89ee6b1..293ad60 100644
+--- a/src/datamodules/Datamodules_eval.py
++++ b/src/datamodules/Datamodules_eval.py
+@@ -42,10 +42,10 @@ class Brats21(LightningDataModule):
+                 self.test_eval = create_dataset.Eval(self.csv['test'], self.cfg)
+ 
+     def val_dataloader(self):
+-        return DataLoader(self.val_eval, batch_size=1, num_workers=self.cfg.num_workers, pin_memory=True, shuffle=False)
++        return DataLoader(self.val_eval, batch_size=1, num_workers=self.cfg.num_workers, pin_memory=False, shuffle=False)
+ 
+     def test_dataloader(self):
+-        return DataLoader(self.test_eval, batch_size=1, num_workers=self.cfg.num_workers, pin_memory=True, shuffle=False)
++        return DataLoader(self.test_eval, batch_size=1, num_workers=self.cfg.num_workers, pin_memory=False, shuffle=False)
+ 
+ 
+ 
+@@ -73,7 +73,7 @@ class MSLUB(LightningDataModule):
+             self.csv[state]['seg_path'] = cfg.path.pathBase + '/Data/' + self.csv[state]['seg_path']
+             
+             if cfg.mode != 't1':
+-                self.csv[state]['img_path'] = self.csv[state]['img_path'].str.replace('uniso/t1',f'uniso/{cfg.mode}').str.replace('t1.nii.gz',f'{cfg.mode}.nii.gz')
++                self.csv[state]['img_path'] = self.csv[state]['img_path'].str.replace('/t1/',f'/{cfg.mode}/').str.replace('t1.nii.gz',f'{cfg.mode}.nii.gz')
+     def setup(self, stage: Optional[str] = None):
+         # called on every GPU
+         if not hasattr(self,'val_eval'):
+@@ -85,7 +85,50 @@ class MSLUB(LightningDataModule):
+                 self.test_eval = create_dataset.Eval(self.csv['test'], self.cfg)
+ 
+     def val_dataloader(self):
+-        return DataLoader(self.val_eval, batch_size=1, num_workers=self.cfg.num_workers, pin_memory=True, shuffle=False)
++        return DataLoader(self.val_eval, batch_size=1, num_workers=self.cfg.num_workers, pin_memory=False, shuffle=False)
+ 
+     def test_dataloader(self):
+-        return DataLoader(self.test_eval, batch_size=1, num_workers=self.cfg.num_workers, pin_memory=True, shuffle=False)
++        return DataLoader(self.test_eval, batch_size=1, num_workers=self.cfg.num_workers, pin_memory=False, shuffle=False)
++
++
++# ---------------------------------------------------------------------------
++# Added for MaskFreeLDM: T1 evaluation sets (ATLAS v2, WMH).
++# Same structure as Brats21/MSLUB above; images are already T1, so no path
++# rewriting is needed. Split CSVs are set in configs/datamodule/IXI.yaml under
++# path.ATLAS_v2.IDs.{val,test} and path.WMH.IDs.{val,test}.
++# ---------------------------------------------------------------------------
++
++class _EvalSet(LightningDataModule):
++    setname = None
++
++    def __init__(self, cfg, fold=None):
++        super().__init__()
++        self.cfg = cfg
++        self.preload = cfg.get('preload', True)
++        p = cfg.path[self.setname]
++        self.csv = {'val': pd.read_csv(p.IDs.val), 'test': pd.read_csv(p.IDs.test)}
++        for state in ['val', 'test']:
++            self.csv[state]['settype'] = state
++            self.csv[state]['setname'] = self.setname
++            for col in ['img_path', 'mask_path', 'seg_path']:
++                self.csv[state][col] = cfg.path.pathBase + '/Data/' + self.csv[state][col]
++
++    def setup(self, stage: Optional[str] = None):
++        if not hasattr(self, 'val_eval'):
++            n = 4 if self.cfg.sample_set else None
++            self.val_eval = create_dataset.Eval(self.csv['val'][0:n], self.cfg)
++            self.test_eval = create_dataset.Eval(self.csv['test'][0:n], self.cfg)
++
++    def val_dataloader(self):
++        return DataLoader(self.val_eval, batch_size=1, num_workers=self.cfg.num_workers, pin_memory=False, shuffle=False)
++
++    def test_dataloader(self):
++        return DataLoader(self.test_eval, batch_size=1, num_workers=self.cfg.num_workers, pin_memory=False, shuffle=False)
++
++
++class ATLAS_v2(_EvalSet):
++    setname = 'ATLAS_v2'
++
++
++class WMH(_EvalSet):
++    setname = 'WMH'
+diff --git a/src/datamodules/Datamodules_train.py b/src/datamodules/Datamodules_train.py
+index 3de5025..f6bf90d 100644
+--- a/src/datamodules/Datamodules_train.py
++++ b/src/datamodules/Datamodules_train.py
+@@ -58,14 +58,14 @@ class IXI(LightningDataModule):
+                 self.test_eval = create_dataset.Eval(self.csv['test'],self.cfg)
+     
+     def train_dataloader(self):
+-        return DataLoader(self.train, batch_size=self.cfg.batch_size, num_workers=self.cfg.num_workers, pin_memory=True, shuffle=True, drop_last=self.cfg.get('droplast',False))
++        return DataLoader(self.train, batch_size=self.cfg.batch_size, num_workers=self.cfg.num_workers, pin_memory=False, shuffle=True, drop_last=self.cfg.get('droplast',False))
+ 
+     def val_dataloader(self):
+-        return DataLoader(self.val, batch_size=self.cfg.batch_size, num_workers=self.cfg.num_workers, pin_memory=True, shuffle=False)
++        return DataLoader(self.val, batch_size=self.cfg.batch_size, num_workers=self.cfg.num_workers, pin_memory=False, shuffle=False)
+ 
+     def val_eval_dataloader(self):
+-        return DataLoader(self.val_eval, batch_size=1, num_workers=self.cfg.num_workers, pin_memory=True, shuffle=False)
++        return DataLoader(self.val_eval, batch_size=1, num_workers=self.cfg.num_workers, pin_memory=False, shuffle=False)
+ 
+     def test_eval_dataloader(self):
+-        return DataLoader(self.test_eval, batch_size=1, num_workers=self.cfg.num_workers, pin_memory=True, shuffle=False)
++        return DataLoader(self.test_eval, batch_size=1, num_workers=self.cfg.num_workers, pin_memory=False, shuffle=False)
+       
+diff --git a/src/datamodules/create_dataset.py b/src/datamodules/create_dataset.py
+index 060bedf..b40ec0d 100644
+--- a/src/datamodules/create_dataset.py
++++ b/src/datamodules/create_dataset.py
+@@ -1,3 +1,4 @@
++import copy
+ 
+ from torch.utils.data import Dataset
+ import numpy as np
+@@ -7,6 +8,13 @@ import torchio as tio
+ sitk.ProcessObject.SetGlobalDefaultThreader("Platform")
+ from multiprocessing import Manager
+ 
++import threading
++class _LocalManager:  # single-process stand-in for multiprocessing.Manager (keeps cache out of /dev/shm)
++    dict = staticmethod(dict)
++    list = staticmethod(list)
++    Lock = staticmethod(threading.Lock)
++    RLock = staticmethod(threading.RLock)
++
+ def Train(csv,cfg,preload=True):
+     subjects = []
+     for _, sub in csv.iterrows():
+@@ -28,7 +36,7 @@ def Train(csv,cfg,preload=True):
+         subjects.append(subject)
+     
+     if preload: 
+-        manager = Manager()
++        manager = _LocalManager()
+         cache = DatasetCache(manager)
+         ds = tio.SubjectsDataset(subjects, transform = get_transform(cfg))
+         ds = preload_wrapper(ds, cache, augment = get_augment(cfg))
+@@ -120,6 +128,8 @@ class preload_wrapper(Dataset):
+             self.cache.cache(index, subject)
+         if self.augment:
+             subject = self.augment(subject)
++        else:
++            subject = copy.deepcopy(subject)  # vol2slice edits in place; never hand out the cached one
+         return subject
+ 
+ class vol2slice(Dataset):
+diff --git a/src/models/DDPM_2D.py b/src/models/DDPM_2D.py
+index 2c84140..43ceaf3 100644
+--- a/src/models/DDPM_2D.py
++++ b/src/models/DDPM_2D.py
+@@ -4,7 +4,7 @@ from src.models.modules.DDPM_encoder import get_encoder
+ import torch
+ from src.utils.utils_eval import _test_step, _test_end, get_eval_dictionary
+ import numpy as np
+-from pytorch_lightning.core.lightning import LightningModule
++from pytorch_lightning import LightningModule
+ import torch.optim as optim
+ from typing import Any
+ import torchio as tio
+@@ -15,6 +15,15 @@ from collections import OrderedDict
+ from src.models.LDM.modules.diffusionmodules.util import timestep_embedding
+ 
+ class DDPM_2D(LightningModule):
++    def transfer_batch_to_device(self, batch, device, dataloader_idx):
++        def plain(o):
++            if isinstance(o, dict):
++                return {k: plain(v) for k, v in o.items()}
++            if isinstance(o, list):
++                return [plain(v) for v in o]
++            return o
++        return super().transfer_batch_to_device(plain(batch), device, dataloader_idx)
++
+     def __init__(self,cfg,prefix=None):
+         super().__init__()
+         
+diff --git a/src/models/modules/spark/models.py b/src/models/modules/spark/models.py
+index eeb5990..a7d38dd 100644
+--- a/src/models/modules/spark/models.py
++++ b/src/models/modules/spark/models.py
+@@ -7,7 +7,7 @@
+ import torch
+ from timm import create_model
+ from timm.loss import SoftTargetCrossEntropy
+-from timm.models.layers import drop
++from timm.layers import drop
+ 
+ import torchvision
+ from src.models.modules.spark.resnet import ResNet
+diff --git a/src/train.py b/src/train.py
+index 5626026..7e910fb 100644
+--- a/src/train.py
++++ b/src/train.py
+@@ -6,7 +6,7 @@ from pytorch_lightning import (
+     seed_everything,
+ )
+ from omegaconf import DictConfig, OmegaConf, open_dict
+-from pytorch_lightning.plugins import DDPPlugin
++from pytorch_lightning.strategies import DDPStrategy
+ import hydra
+ from omegaconf import DictConfig
+ from typing import List, Optional
+@@ -15,7 +15,7 @@ import os
+ import warnings
+ import torch
+ from src.utils import utils
+-from pytorch_lightning.loggers import LightningLoggerBase
++from pytorch_lightning.loggers import Logger
+ import pickle
+ 
+ os.environ['NUMEXPR_MAX_THREADS'] = '16'
+@@ -49,7 +49,7 @@ def train(cfg: DictConfig) -> Optional[float]:
+ 
+     # Set plugins for lightning trainer
+     if cfg.trainer.get('accelerator',None) == 'ddp': # for better performance in ddp mode
+-        plugs = DDPPlugin(find_unused_parameters=False)
++        plugs = DDPStrategy(find_unused_parameters=False)
+     else: 
+         plugs = None
+ 
+@@ -98,7 +98,7 @@ def train(cfg: DictConfig) -> Optional[float]:
+             callbacks[0].FILE_EXTENSION = f'_fold-{fold+1}.ckpt' # naming of logs for cross validation callbacks[0] is the model checkpoint callback (this is a hacky way to do this)
+ 
+         # Init lightning loggers
+-        logger: List[LightningLoggerBase] = []
++        logger: List[Logger] = []
+         if "logger" in cfg:
+             for _, lg_conf in cfg.logger.items():
+                 if "_target_" in lg_conf:
+@@ -134,13 +134,13 @@ def train(cfg: DictConfig) -> Optional[float]:
+             trainer.fit(model, datamodule_train)
+             validation_metrics = trainer.callback_metrics
+         else: # load trained model
+-            model.load_state_dict(torch.load(checkpoints[f'fold-{fold+1}'])['state_dict'])
++            model.load_state_dict(torch.load(checkpoints[f'fold-{fold+1}'], weights_only=False)['state_dict'])
+ 
+         # logging
+         log.info(f"Best checkpoint path:\n{trainer.checkpoint_callback.best_model_path}")
+         log.info(f"Best checkpoint metric:\n{trainer.checkpoint_callback.best_model_score}")
+-        trainer.logger.experiment[0].log({'best_ckpt_path':trainer.checkpoint_callback.best_model_path})
+-        trainer.logger.experiment[0].log({'logdir':trainer.log_dir})
++        trainer.loggers[0].experiment.log({'best_ckpt_path':trainer.checkpoint_callback.best_model_path})
++        trainer.loggers[0].experiment.log({'logdir':trainer.log_dir})
+ 
+         # metrics
+         validation_metrics = trainer.callback_metrics
+@@ -161,6 +161,7 @@ def train(cfg: DictConfig) -> Optional[float]:
+             
+             sets = {
+                     't2':['Datamodules_eval.Brats21','Datamodules_eval.MSLUB','Datamodules_train.IXI'],
++                    't1':['Datamodules_eval.Brats21','Datamodules_eval.MSLUB','Datamodules_eval.ATLAS_v2','Datamodules_eval.WMH','Datamodules_train.IXI'],
+                    }
+             
+                 
+@@ -179,9 +180,9 @@ def train(cfg: DictConfig) -> Optional[float]:
+                 ckpt_path=cfg.get('ckpt_path',None)
+ 
+                 if 'train' in set:
+-                    trainer.test(model=model,dataloaders=datamodule.val_eval_dataloader(),ckpt_path=ckpt_path)
++                    trainer.test(model=model,dataloaders=datamodule.val_eval_dataloader(),ckpt_path=ckpt_path, weights_only=False)
+                 else: 
+-                    trainer.test(model=model,dataloaders=datamodule.val_dataloader(),ckpt_path=ckpt_path)
++                    trainer.test(model=model,dataloaders=datamodule.val_dataloader(),ckpt_path=ckpt_path, weights_only=False)
+                 # evaluation results
+                 preds_dict['val'][set] = trainer.lightning_module.eval_dict
+                 log_dict = utils.summarize(preds_dict['val'][set],'val') # sets prefix val/ and removes lists for better logging in wandb
+@@ -189,15 +190,15 @@ def train(cfg: DictConfig) -> Optional[float]:
+                 # Test steps
+                 log.info("Test of {}!".format(set))
+                 if 'train' in set:
+-                    trainer.test(model=model,dataloaders=datamodule.test_eval_dataloader(),ckpt_path=ckpt_path)
++                    trainer.test(model=model,dataloaders=datamodule.test_eval_dataloader(),ckpt_path=ckpt_path, weights_only=False)
+                 else: 
+-                    trainer.test(model=model,dataloaders=datamodule.test_dataloader(),ckpt_path=ckpt_path)
++                    trainer.test(model=model,dataloaders=datamodule.test_dataloader(),ckpt_path=ckpt_path, weights_only=False)
+ 
+                 # log to wandb
+                 preds_dict['test'][set] = trainer.lightning_module.eval_dict
+                 log_dict.update(utils.summarize(preds_dict['test'][set],'test')) # sets prefix test/ and removes lists for better logging in wandb
+                 log_dict = utils.summarize(log_dict,f'{fold+1}/'+set) # sets prefix for each data set
+-                trainer.logger.experiment[0].log(log_dict)
++                trainer.loggers[0].experiment.log(log_dict)
+ 
+                 
+ 
+diff --git a/src/utils/utils.py b/src/utils/utils.py
+index 88f9dad..7094418 100644
+--- a/src/utils/utils.py
++++ b/src/utils/utils.py
+@@ -115,7 +115,7 @@ def log_hyperparameters(
+     datamodule: pl.LightningDataModule,
+     trainer: pl.Trainer,
+     callbacks: List[pl.Callback],
+-    logger: List[pl.loggers.LightningLoggerBase],
++    logger: List[pl.loggers.Logger],
+ ) -> None:
+     """This method controls which parameters from Hydra config are saved by Lightning loggers.
+     Additionaly saves:
+@@ -142,7 +142,7 @@ def log_hyperparameters(
+     hparams["model/params_not_trainable"] = sum(
+         p.numel() for p in model.parameters() if not p.requires_grad
+     )
+-    hparams['run_id'] = trainer.logger.experiment[0].id
++    hparams['run_id'] = trainer.loggers[0].experiment.id
+     # send hparams to all loggers
+     trainer.logger.log_hyperparams(hparams)
+ 
+@@ -158,7 +158,7 @@ def finish(
+     datamodule: pl.LightningDataModule,
+     trainer: pl.Trainer,
+     callbacks: List[pl.Callback],
+-    logger: List[pl.loggers.LightningLoggerBase],
++    logger: List[pl.loggers.Logger],
+ ) -> None:
+     """Makes sure everything closed properly."""
+ 
+diff --git a/src/utils/utils_eval.py b/src/utils/utils_eval.py
+index f25c7b3..4251e45 100644
+--- a/src/utils/utils_eval.py
++++ b/src/utils/utils_eval.py
+@@ -610,7 +610,7 @@ def log_images(self, diff_volume, data_orig, data_seg, data_mask, final_volume,
+         
+         if self.cfg.get('save_to_disc',True):
+             plt.savefig(os.path.join(ImagePathList['imagesGrid'], '{}_{}_Grid.png'.format(ID[0],j)),bbox_inches='tight')
+-        self.logger.experiment[0].log({'images/{}/{}_Grid.png'.format(self.dataset[0],j) : wandb.Image(plt)})
++        self.loggers[0].experiment.log({'images/{}/{}_Grid.png'.format(self.dataset[0],j) : wandb.Image(plt)})
+         plt.clf()
+         plt.cla()
+         plt.close()

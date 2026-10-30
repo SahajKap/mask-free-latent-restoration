@@ -1,0 +1,25 @@
+# @package _global_
+defaults:
+  - override /trainer: default.yaml
+  - override /model: MaskFreeLDM.yaml
+  - override /datamodule: IXI.yaml
+datamodule:
+  cfg:
+    rescaleFactor: 2
+    imageDim: [192,192,100]
+    mode: t2
+    aug_intensity: True
+    num_workers: 0
+model:
+  cfg:
+    stage: vae
+    init_ckpt: null
+num_folds: 1
+logger:
+  wandb:
+    project: maskfree
+name: maskfree_vae
+seed: 3141
+test_after_training: False
+trainer:
+  max_epochs: 150
