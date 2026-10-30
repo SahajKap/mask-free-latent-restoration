@@ -1,19 +1,20 @@
 """
 MaskFreeLDM
-Learned anomaly generator + conditional latent diffusion for unsupervised
-anomaly detection in brain MRI, implemented inside the cDDPM framework of
-Behrendt et al. so that data loading, preprocessing, splits, threshold
-selection and metrics are identical to the published benchmark.
+Conditional latent restoration for mask-free unsupervised anomaly detection in brain MRI,
+implemented inside the cDDPM benchmark of Behrendt et al. so that data loading, preprocessing,
+splits, threshold selection and metrics are identical to the benchmark.
 
 One class, three training stages selected by cfg.stage:
     vae        train the VAE
-    generator  train the anomaly generator      (VAE frozen)
-    diffusion  train the conditional diffusion  (VAE + generator frozen)
+    generator  train the learned anomaly-placement network (ablation only; VAE frozen)
+    diffusion  train the conditional latent model (VAE frozen); with t_max=1 this is the
+               paper's one-step model, with t_max=1000 the iterative diffusion model
 Each later stage loads the previous stage's checkpoint via cfg.init_ckpt.
-Test-time evaluation is meaningful only for the diffusion stage.
+The paper's settings are in configs/experiment/maskfree/{onestep,iterative}.yaml; the defaults in
+configs/model/MaskFreeLDM.yaml are not the paper's settings.
 
-Input slices are 96x96 (imageDim 192x192, rescaleFactor 2), intensities in
-[0, 1] after the framework's percentile rescaling. Latent is (4, 24, 24).
+Input slices are 96x96 (imageDim 192x192, rescaleFactor 2), intensities in [0, 1] after the
+framework's percentile rescaling. Latent is (4, 24, 24).
 """
 import math
 from typing import Any
@@ -463,7 +464,7 @@ class MaskFreeLDM(LightningModule):
     def reconstruct(self, x):
         s = self.cfg.get("latent_scale", 1.0)
         mu = self.vae.encode(x.clamp(0, 1))[0] * s
-        if self.cfg.get("test_cond", "input") == "corrupt":      # old behaviour, kept for ablation
+        if self.cfg.get("test_cond", "input") == "corrupt":      # corrupted test input (not used in the paper)
             cond = self._conditioning(x, self._brain(x)) * s
         else:                                                    # condition on the test image itself
             cond = mu
