@@ -29,12 +29,12 @@ It contains only our own files and a patch (`compat.patch`) with our changes to 
 ## 1. Setup
 
 ```bash
-git clone https://github.com/SahajKap/mask-free-latent-restoration.git maskfree      # this repository
-git clone $(cat maskfree/UPSTREAM_URL.txt) cddpm && cd cddpm               # the benchmark code
-git checkout $(cat ../maskfree/UPSTREAM_COMMIT.txt)                       # exact version we used
-git apply ../maskfree/compat.patch      # Lightning 2.x / TorchIO 1.x fixes, ATLAS and WMH test sets
+git clone https://github.com/SahajKap/mask-free-latent-restoration.git maskfree
+git clone $(cat maskfree/UPSTREAM_URL.txt) cddpm && cd cddpm
+git checkout $(cat ../maskfree/UPSTREAM_COMMIT.txt)
+git apply ../maskfree/compat.patch
 cp -r ../maskfree/src ../maskfree/configs ../maskfree/scripts .
-pip install -r ../maskfree/requirements.txt   # our versions; do not use cddpm's own requirements.txt (2021 pins)
+pip install -r ../maskfree/requirements.txt
 ```
 
 All commands below are run from inside `cddpm/`.
