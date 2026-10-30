@@ -1,10 +1,15 @@
 """Qualitative figure: representative slices (75th percentile of localisation score) per test set.
-Usage (repo root):  python scripts/make_fig_qual.py [percentile]"""
+Usage (repo root, after sourcing pc_environment.env):
+    python scripts/make_fig_qual.py [percentile] [onestep_t2_run] [onestep_t1_run]
+Run names default to those created by scripts/cross_validate.sh (fold 0)."""
 import sys, glob, os, numpy as np
 from PIL import Image
 import matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt
-R = '/workspace/logs/logs/runs'; OUT = '/workspace/logs'
+R = os.path.join(os.environ['LOG_DIR'], 'logs', 'runs')   # run folders written by run.py
+OUT = os.environ.get('FIG_DIR', '.')
 PCT = float(sys.argv[1]) if len(sys.argv) > 1 else 75
+RUN_T2 = sys.argv[2] if len(sys.argv) > 2 else 'onestep_t2_f0'
+RUN_T1 = sys.argv[3] if len(sys.argv) > 3 else 'onestep_t1_f0'
 
 def segments(nonwhite):
     idx = np.where(nonwhite)[0]; cuts = np.where(np.diff(idx) > 3)[0]
@@ -18,10 +23,10 @@ def score(p):
     if g.mean() < 0.01: return None                       # need a visible lesion
     return (m * g).sum() / (m.sum() + 1e-6)                # share of anomaly-map mass inside the lesion
 
-sets = [('BraTS21', 'os_t2', lambda n: n.startswith('BraTS')),
-        ('MSLUB',   'os_t2', lambda n: n.startswith('patient')),
-        ('ATLAS',   'os_t1', lambda n: n.startswith('sub')),
-        ('WMH',     'os_t1', lambda n: not n.startswith(('BraTS', 'patient', 'sub', 'IXI')))]
+sets = [('BraTS21', RUN_T2, lambda n: n.startswith('BraTS')),
+        ('MSLUB',   RUN_T2, lambda n: n.startswith('patient')),
+        ('ATLAS',   RUN_T1, lambda n: n.startswith('sub')),
+        ('WMH',     RUN_T1, lambda n: not n.startswith(('BraTS', 'patient', 'sub', 'IXI')))]
 rows = []
 for name, run, test in sets:
     files = [f for f in glob.glob(f'{R}/{run}/*/grid/*_Grid.png') if test(os.path.basename(f))]

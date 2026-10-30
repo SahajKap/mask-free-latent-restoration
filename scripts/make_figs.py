@@ -1,11 +1,16 @@
 """Builds the two data figures for the paper.
-  fig_qualitative.png : for each test set, the slices with the largest lesions (input | reconstruction | anomaly map | ground truth)
+  fig_qualitative.png : largest-lesion slices per test set (the paper's Fig. 3 uses scripts/make_fig_qual.py instead)
   fig_synthetic.png   : healthy IXI slices with randomly placed synthetic anomalies (input | mask | corrupted)
-Usage (repo root):  python scripts/make_figs.py"""
+Usage (repo root, after sourcing pc_environment.env):
+    python scripts/make_figs.py [onestep_t2_run] [onestep_t1_run]
+Run names default to those created by scripts/cross_validate.sh (fold 0)."""
 import sys, glob, os, numpy as np, torch
 from PIL import Image, ImageDraw, ImageFont
 sys.path.insert(0, '.')
-R = '/workspace/logs/logs/runs'; OUT = '/workspace/logs'
+RUN_T2 = sys.argv[1] if len(sys.argv) > 1 else 'onestep_t2_f0'
+RUN_T1 = sys.argv[2] if len(sys.argv) > 2 else 'onestep_t1_f0'
+R = os.path.join(os.environ['LOG_DIR'], 'logs', 'runs')   # run folders written by run.py
+OUT = os.environ.get('FIG_DIR', '.')
 
 def lesion_area(path):
     a = np.asarray(Image.open(path).convert('L')); w = a.shape[1]
@@ -22,10 +27,10 @@ def pick(run, test, k):
         if len(out) == k: break
     return out
 
-sets = [('BraTS21 (T2)', 'os_t2', lambda n: n.startswith('BraTS')),
-        ('MSLUB (T2)',   'os_t2', lambda n: n.startswith('patient')),
-        ('ATLAS (T1)',   'os_t1', lambda n: n.startswith('sub')),
-        ('WMH (T1)',     'os_t1', lambda n: not n.startswith(('BraTS', 'patient', 'sub', 'IXI')))]
+sets = [('BraTS21 (T2)', RUN_T2, lambda n: n.startswith('BraTS')),
+        ('MSLUB (T2)',   RUN_T2, lambda n: n.startswith('patient')),
+        ('ATLAS (T1)',   RUN_T1, lambda n: n.startswith('sub')),
+        ('WMH (T1)',     RUN_T1, lambda n: not n.startswith(('BraTS', 'patient', 'sub', 'IXI')))]
 rows, labels = [], []
 for name, run, test in sets:
     for f in pick(run, test, 2):
@@ -48,8 +53,9 @@ import hydra
 from hydra import compose, initialize
 import matplotlib; matplotlib.use('Agg'); import matplotlib.pyplot as plt
 from src.models.MaskFreeLDM import MaskFreeLDM
-with initialize(config_path='../configs'):
-    cfg = compose('config', overrides=['experiment=maskfree/final', 'datamodule.cfg.mode=t2', 'datamodule.cfg.num_workers=0',
+os.environ.setdefault('INIT_CKPT', 'none'); os.environ.setdefault('LATENT_SCALE', '1.0')   # not used for this figure
+with initialize(config_path='../configs', version_base=None):
+    cfg = compose('config', overrides=['experiment=maskfree/onestep', 'datamodule.cfg.mode=t2', 'datamodule.cfg.num_workers=0',
                                        'datamodule.cfg.sample_set=True', 'model.cfg.init_ckpt=null'])
 cfg.datamodule._target_ = 'src.datamodules.Datamodules_train.IXI'
 dm = hydra.utils.instantiate(cfg.datamodule, fold=0); dm.setup()
