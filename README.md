@@ -87,12 +87,7 @@ file as above (conditional-model checkpoints contain their VAE), and add
 Results are written to `<run dir>/<fold>_preds_dict.pkl`. The paper reports `DicePerVolMean` and `AUPRCPerVolMean`
 of the `test` entries.
 
-## 5. Pretrained models
-
-The ten one-step models of the paper (five folds × T1/T2, VAE weights included) are attached to the
-[v1.0 release](../../releases). File names are `fold{k}_onestep_{t1,t2}.pt`; use them as `INIT_CKPT` as in Section 4.
-
-## 6. Ablations (paper Section 5.1)
+## 5. Ablations (paper Section 5.1)
 
 Overrides of `experiment=maskfree/onestep`:
 
@@ -109,7 +104,7 @@ Overrides of `experiment=maskfree/onestep`:
 Ablations in the paper are evaluated on the BraTS21 validation split of fold 0, with the benchmark's threshold
 selection.
 
-## 7. Other scripts
+## 6. Other scripts
 
 - `scripts/timing.py`: reconstruction time per volume
 - `scripts/make_figs.py`, `scripts/make_fig_qual.py`: figures
