@@ -1,3 +1,5 @@
+# Defaults for MaskFreeLDM. These are NOT the paper's settings: use
+# experiment=maskfree/onestep (paper's model) or experiment=maskfree/iterative, which set every value explicitly.
 _target_: src.models.MaskFreeLDM.MaskFreeLDM
 
 cfg:
@@ -34,7 +36,7 @@ cfg:
   lambda_tv: 2.0
   lambda_bin: 1.0
   lambda_div: 10.0
-  brain_erode: 4           # px at 96x96 (was 10 at 256x256)
+  brain_erode: 4           # px at 96x96
   mask_sigma: [0.75, 2.0]  # px at 96x96
 
   ## Diffusion
@@ -52,7 +54,7 @@ cfg:
   latent_scale: 1.0        # set to 1/std(mu) from scripts/latent_stats.py
 
   ## Inference
-  test_cond: input         # input | corrupt (old behaviour, ablation only)
+  test_cond: input         # input (paper) | corrupt
   t0_ensemble: [250, 500, 750]
   ddim_steps: 25
   cancel_vae_error: false
