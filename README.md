@@ -1,7 +1,6 @@
 # Mask-Free Unsupervised Anomaly Detection in Brain MRI via One-Step Conditional Latent Restoration
 
-Code for the paper by Rahul Nijhawan, Sahaj Kapoor, Mitul Pabri, Aarushi Rawal and Yashika Bhalla
-(Thapar Institute of Engineering and Technology, Patiala, India).
+Code for the paper by Rahul Nijhawan and Sahaj Kapoor (Thapar Institute of Engineering and Technology, Patiala, India).
 
 A conditional network in the latent space of a VAE is trained, on healthy scans only, to map slices corrupted by
 randomly placed synthetic anomalies back to their healthy latent code. No lesion masks are used at any stage. At test
